@@ -1,0 +1,32 @@
+class LOCC_Test(LoccNet):
+    def __init__(self, theta_A, theta_B):
+        super(LOCC_Test, self).__init__()
+        self.parties = list()
+        self.add_new_party(2, party_name="Alice")
+        self.add_new_party(1, party_name="Bob")
+
+        _state = bell_state(2)
+        self._state0 = random_state(1)
+        self.set_init_state(_state, [("Alice", 1), ("Bob", 0)])
+        self.set_init_state(self._state0, [("Alice", 0)])
+
+        self.cirA = self.create_ansatz("Alice")
+        self.cirA.universal_two_qubits(qubits_idx=[0, 1], param=theta_A)
+        self.cirB = [self.create_ansatz("Bob") for _ in range(4)]
+        for i, cir in enumerate(self.cirB):
+            cir.u3(qubits_idx=0, param=theta_B[i])
+        
+
+    def benchmark(self):
+        input_state = self.init_status
+        status = self.cirA(input_state)
+        status_A = self.measure(status, [("Alice", 0), ("Alice", 1)], ["00", "01", "10", "11"])
+        fid_list = []
+        for i, s in enumerate(status_A):
+            status_B = self.cirB[i](s)
+            status_fin = self.partial_state(status_B, [("Bob", 0)])
+            fid = state_fidelity(self._state0.numpy(), status_fin.numpy()) ** 2
+            fid_list.append(fid * status_fin.prob)
+        fid_ave = sum(fid_list)
+        
+        return fid_ave
